@@ -6,78 +6,70 @@
 *                on account; based on a filter when Opportunity is Closed/Won.
 */
 
-public class OpportunityTriggerHandler { 
+public class OpportunityTriggerHandler {
 
     public static final String OPPORTUNITY_STAGENAME = 'Closed Won';
 
+    /*
+    * @description : Add new Contact Roles to Opportunities On Update Trigger
+    *
+    * @param : List of new opportunities, List of old opportunities
+    */
     public static void addContactRolesOpportunityOnUpdate(List<Opportunity> newOpportunitues, Map<Id, Opportunity> oldMapOpportunitues) {
-        // make this modular 
 
-        Map<Id, List<Id>> mapAccountIdWithOppIds = new Map<Id, List<Id>>(); 
+        List<Opportunity> newClosedWonOpportunitues = new List<Opportunity>();
 
         for(Opportunity newOpp: newOpportunitues) {
             Opportunity oldOpp = oldMapOpportunitues.get(newOpp.id);
             if(oldOpp.StageName !=OPPORTUNITY_STAGENAME && newOpp.StageName == OPPORTUNITY_STAGENAME) {
-                if(mapAccountIdWithOppIds.containsKey(newOpp.AccountId)) {
-                    List<Id> oppIds = new List<Id>();
-                    oppIds = mapAccountIdWithOppIds.get(newOpp.AccountId);
-                    oppIds.add(newOpp.Id);
-                    mapAccountIdWithOppIds.put(newOpp.AccountId, oppIds);
-                } else {
-                    mapAccountIdWithOppIds.put(newOpp.AccountId, new List<Id> { newOpp.Id });
-                }
+                newClosedWonOpportunitues.add(newOpp);
             }
         }
-
-        if(mapAccountIdWithOppIds == null || mapAccountIdWithOppIds.isEmpty()) {
-            return; 
+        if(newClosedWonOpportunitues == null || newClosedWonOpportunitues.isEmpty()) {
+            return;
         }
 
-        //get Account Contact details
-        Map<Id, List<Contact>> mapAccountIdWithContacts = new Map<Id, List<Contact>>();
-        List<OpportunityContactRole> newOppContactRole =  new List<OpportunityContactRole>();
-
-        for(Account acc: [SELECT Id, Name, (SELECT Id, LastName FROM Contacts) FROM Account WHERE Id IN:mapAccountIdWithOppIds.keySet()]) {
-            mapAccountIdWithContacts.put(acc.Id, acc.Contacts);
-        }
-
-        for(Id accIdValue : mapAccountIdWithOppIds.keySet()) {
-            for(Contact con : mapAccountIdWithContacts.get(accIdValue)) { 
-                for(Id oppIdValue : mapAccountIdWithOppIds.get(accIdValue)) {
-                    OpportunityContactRole ocr = createOpportunityContactRole(
-                        oppIdValue, 
-                        con.id, 
-                        'Family Member', 
-                        FALSE,
-                        FALSE
-                     );
-                    newOppContactRole.add(ocr);
-                }
-            }
-        }
-
-        if(newOppContactRole.isEmpty()) {
+        List<OpportunityContactRole> newOppContactRoles = OpportunityTriggerHandlerUtil.addContactRolesOpportunity(newClosedWonOpportunitues);
+        if(newOppContactRoles == null || newOppContactRoles.isEmpty()) {
             return;
         }
 
         try {
-            insert newOppContactRole;
+            insert newOppContactRoles; // Check DML limits while inserting, AllOrNone vs and Database.insert
         } catch(DmlException e) {
-            //@todo Send an email or append to a logging mechanism
+            //@todo Append to a logging mechanism
             System.debug('The following exception has occurred: '+e.getMessage());
         }
     }
 
-	private static OpportunityContactRole createOpportunityContactRole(Id opportunityId, Id contactId, String role, Boolean isPrimary, Boolean doInsert) {
-        OpportunityContactRole c = new OpportunityContactRole(
-            OpportunityId = opportunityId, 
-            ContactId = contactId, 
-            Role = role, 
-            IsPrimary = isPrimary);
+    /*
+    * @description : Add new Contact Roles to Opportunities On Insert Trigger
+    *
+    * @param : List of new opportunities 
+    */
+    public static void addContactRolesOpportunityOnInsert(List<Opportunity> newOpportunitues) {
 
-		if(doInsert) {
-			insert c;
-		}
-		return c;
-	}
+        List<Opportunity> newClosedWonOpportunitues = new List<Opportunity>();
+
+        for(Opportunity newOpp: newOpportunitues) {
+            if(newOpp.StageName == OPPORTUNITY_STAGENAME) {
+                newClosedWonOpportunitues.add(newOpp);
+            }
+        }
+        if(newClosedWonOpportunitues == null || newClosedWonOpportunitues.isEmpty()) {
+            return;
+        }
+
+        List<OpportunityContactRole> newOppContactRoles = OpportunityTriggerHandlerUtil.addContactRolesOpportunity(newClosedWonOpportunitues);
+        if(newOppContactRoles == null || newOppContactRoles.isEmpty()) {
+            return;
+        }
+
+        try {
+            insert newOppContactRoles; // Check DML limits while inserting, AllOrNone vs and Database.insert
+        } catch(DmlException e) {
+            //@todo Append to a logging mechanism
+            System.debug('The following exception has occurred: '+e.getMessage());
+        }
+    }
 }

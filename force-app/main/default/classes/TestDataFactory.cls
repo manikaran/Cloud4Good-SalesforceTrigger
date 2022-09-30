@@ -33,6 +33,18 @@ public class TestDataFactory {
 		return c;
 	}
 
+	public static List<Contact> createContacts(Id accountId, Integer numCons) {
+		List<Contact> contacts = new List<Contact>();
+		for(Integer i = 1; i <= numCons; i++) {
+			Contact c = new Contact();
+			c.firstName = 'TestContactFirstName ' + i;
+			c.LastName = 'TestContactLastName' + i;
+			c.accountId = accountId;
+			contacts.add(c);
+		}
+		return contacts;
+	}
+
     //Opportunity
 	public static List<Opportunity> createOpportunity(Id accountId, Integer numOpps, String stageName) {
 		List<Opportunity> opps = new List<Opportunity>();
